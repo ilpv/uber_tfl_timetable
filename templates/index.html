@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>TFL timetable with geolocation</title>
+    <meta charset="utf-8">
+    <!--jquery-->
+    <script src="//ajax.googleapis.com/ajax/libs/jquery/3.1.0/jquery.min.js"></script>
+    <script> window.jQuery || document.write('<script src="{{
+             url_for('static', filename='jquery.js') }}">\x3C/script>')
+    </script>
+
+    <style>
+	#map, #stops 
+	{
+		position: fixed;
+		left: 0;
+		right: 0;
+		height: 50%;
+    }
+
+    #map 
+	{
+      top: 0;
+    }
+
+    #stops 
+	{
+      bottom: 0;
+    }
+
+    html, body 
+	{
+		margin: 0;
+		padding: 0;
+		height: 100%;
+	}
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    <script>
+    function initMap() {
+        // Center of London by default
+        var pos = {lat: 51.50986, lng: -0.118092}, 
+            map = new google.maps.Map(document.getElementById('map'), 
+									  {center: pos, zoom: 10}),
+            infoWindow = new google.maps.InfoWindow({map: map});
+        if (navigator.geolocation) 
+		{
+            // Start geolocation.
+            navigator.geolocation.getCurrentPosition(function(position) 
+			{
+				pos = {lat: position.coords.latitude, lng: position.coords.longitude};
+				infoWindow.setContent('You are here.');
+				JobPos(pos);
+            }, function() 
+			{
+                infoWindow.setContent('Geolocation failed! Using center of London.');
+                JobPos(pos);
+            });
+        } else 
+		{
+            infoWindow.setContent('No geolocation support! Using center of London.');
+            JobPos(pos);
+        }
+        
+        function JobPos(pos)
+        {
+			infoWindow.setPosition(pos);
+			map.setCenter(pos);
+			$.ajax(
+				{ type: "POST", url: "/coordinates", contentType: "application/json",
+				  data: JSON.stringify({location: pos}), dataType: "json",
+				  success: function(msg) { console.log(msg); },
+				  error: function(msg) { console.log(msg); }
+				}
+			).done(showStops);
+			function showStops(data) 
+			{
+				document.getElementById('stops').innerHTML = data;
+			}
+        }
+    }
+
+    </script>
+    <script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBi5AumRRtJFuhHzdZV7dxlhrdLa4_Q39c&callback=initMap">
+    </script>
+	<div id="stops">Stops</div>
+	
+</body>
+</html>
