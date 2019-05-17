@@ -1,0 +1,29 @@
+#map, #stops 
+{
+	position: fixed;
+	left: 0;
+	right: 0;
+	height: 50%;
+}
+#map 
+{
+	top: 0;
+}
+
+#stops 
+{
+	overflow:auto;
+	bottom: 0;
+}
+
+table 
+{
+	border-spacing: 0px;
+}
+
+html, body 
+{
+	margin: 0;
+	padding: 0;
+	height: 100%;
+}

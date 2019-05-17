@@ -1,8 +1,6 @@
 from flask import Flask
-from flask import render_template, render_template_string, request, jsonify
+from flask import render_template, request, jsonify
 import tfl_api
-import json
-import logging
 
 app = Flask(__name__)
 
@@ -11,13 +9,18 @@ def index():
     return render_template('index.html')
 
 @app.route('/coordinates', methods=['POST'])
+#return stops near coordinates 
 def coordinates():
-    cds = request.get_json()
-    lat = cds["location"]["lat"]
-    lon = cds["location"]["lng"]
-#    logging.info("Lat=%f",lat)
-#    logging.info("Lat=%f",lon)
-#find nearest stops and show timestable
+    jsn = request.get_json()
+    lat = jsn["location"]["lat"]
+    lon = jsn["location"]["lng"]
     stops = tfl_api.getNearestStops(lat,lon)
-#    logging.info(stops)
     return jsonify(stops)
+
+@app.route('/timetable', methods=['POST'])
+#return timetable for stopid 
+def timetable():
+    jsn = request.get_json()
+    naptanId = jsn["stopid"]
+    times = tfl_api.getTimeTable(naptanId)
+    return jsonify(times)
