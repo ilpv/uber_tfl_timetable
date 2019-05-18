@@ -29,6 +29,11 @@ def reqTflAPI(url_req):
         resjson["Error"]='Server not reachable %s'%err.reason
     else:    
         html = response.read()
-        resjson["Data"] = json.loads(html)
-        resjson["Error"] = 0
+        dt = json.loads(html)
+        if response.getcode()!=200:
+            msg = dt["message"] if "message" in dt else "No message."
+            resjson["Error"]='%s Response code %s'%(msg,response.getcode())
+        else:
+            resjson["Error"] = 0
+        resjson["Data"] = dt 
     return resjson

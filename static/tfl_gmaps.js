@@ -41,12 +41,13 @@ function clearAllMarkers()
 	{
 		markers[i].setMap(null);
 	}
-         markers.length = 0;
+        markers.length = 0;
 }
 
 function JobPos(msg)
 {
 	clearAllMarkers();
+	displayStops("Please choose the stop clicking on marker.");
 	// Use svg red circle for current position
 	var geoIcon = 
 	{
@@ -86,17 +87,17 @@ function JobPos(msg)
 	}).done(showStops);
 }
 
-function displayErr(err)
+function displayStops(inf)
 {
-	// In case of error display it in a window
-	document.getElementById('stops').innerHTML = err;
+	// Display information in the stops window
+	document.getElementById('stops').innerHTML = inf;
 }
 
 function showStops(stopS)
 {
 	if (stopS.Error)
 	{
-		displayErr(stopS.Error);
+		displayStops(stopS.Error);
 		return;
 	}
 	data = stopS.Data.stopPoints;
@@ -136,13 +137,13 @@ function showTimetable(timeTableS)
 {
 	if (timeTableS.Error)
 	{
-		displayErr(timeTableS.Error);
+		displayStops(timeTableS.Error);
 		return;
 	}
 	timeTable = timeTableS.Data;
 	if (!timeTable.length)
 	{
-		displayErr("Sorry, no arrival data available.");
+		displayStops("Sorry, no arrival data available.");
 		return;
 	}
 	// Sort by time arrival
