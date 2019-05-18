@@ -6,6 +6,13 @@ function initMap()
 {
 	map = new google.maps.Map(document.getElementById('map'), 
 			{center: pos, zoom: 16});
+	google.maps.event.addListener(map, "rightclick", function(event) 
+	{
+		pos.lat = event.latLng.lat();
+		pos.lng = event.latLng.lng();
+		// Set current position by right click
+		JobPos("Current position set.");
+	});
 	infoWindow = new google.maps.InfoWindow({map: map});
 	if (navigator.geolocation) 
 	{
@@ -26,8 +33,20 @@ function initMap()
 	}
 }
 
+var markers = [];
+// Clear all markers on the map.
+function clearAllMarkers() 
+{
+	for (var i = 0; i < markers.length; i++) 
+	{
+		markers[i].setMap(null);
+	}
+         markers.length = 0;
+}
+
 function JobPos(msg)
 {
+	clearAllMarkers();
 	// Use svg red circle for current position
 	var geoIcon = 
 	{
@@ -48,6 +67,7 @@ function JobPos(msg)
 		title: msg 
 	});
 	geoMarker.setMap(map);
+        markers.push(geoMarker);
 	geoMarker.setIcon(geoIcon);
 	geoMarker.addListener('click', function() 
 	{
@@ -89,9 +109,8 @@ function showStops(stopS)
 			map: map,
 			title: data[i].commonName
 		});
+		markers.push(marker);
 		marker.setMap(map);
-		//console.log(data[i].lat,data[i].lon,data[i].commonName);	
-		//console.log(markers.getPosition().toString());    
 		google.maps.event.addListener(marker, 'click', (function(marker, i) 
 		{
 			return function() 
@@ -146,3 +165,4 @@ function showTimetable(timeTableS)
 	htmlTable+="</table>";
 	document.getElementById('stops').innerHTML = htmlTable;
 }
+
