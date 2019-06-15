@@ -1,2 +1,5 @@
 Flask==0.12.4
 Werkzeug<0.13.0,>=0.12.0
+SQLAlchemy==1.3
+lxml==3.7.3
+mysql-python==1.2.5

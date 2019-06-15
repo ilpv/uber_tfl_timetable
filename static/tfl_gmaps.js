@@ -100,7 +100,7 @@ function showStops(stopS)
 		displayStops(stopS.Error);
 		return;
 	}
-	data = stopS.Data.stopPoints;
+	data = stopS.stopPoints;
 	for(var i=0;i<data.length;i++)
 	{
 		var stopLatLng = new google.maps.LatLng(data[i].lat,data[i].lon);
@@ -119,7 +119,7 @@ function showStops(stopS)
 				infoWindow.setContent(marker.getTitle());
 				infoWindow.open(map, marker);
 				infoWindow.setPosition(marker.getPosition());
-				console.log(data[i].stopType);    
+				//console.log(data[i].stopType);    
 				$.ajax(
 				{ 
 					type: "POST", url: "/timetable", contentType: "application/json",
@@ -149,7 +149,7 @@ function showTimetable(timeTableS)
 	// Sort by time arrival
         timeTable.sort((a, b) => (a.timeToStation > b.timeToStation) ? 1 : -1);
 	// TODO: move table styles to css
-	var htmlTable="<table><caption>"+timeTable[0].stationName+"</caption>";
+	var htmlTable="<table><caption>"+timeTable[0].stationName+" updated "+timeTableS.UpdateTime+"</caption>";
 	htmlTable+="<tr><td style='width: 50px; color: blue;'>Type</td>";
  	htmlTable+="<td style='width: 50px; color: blue; text-align: right;'>Line</td>";
  	htmlTable+="<td style='width: 400px; color: blue; text-align: right;'>Destination</td>";
