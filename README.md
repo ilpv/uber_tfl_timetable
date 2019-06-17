@@ -26,11 +26,11 @@ App was created as a part of [Uber code challenge](https://github.com/uber-archi
  3. Arrival times displayed as html table
 	 - First arriving are on the top
  4. Arrival times are cached by sharding database
-         - Split London's transport area to squares
-         - For every square stops information stored in corresponding database shard
-         - Depending from coordinates and distance we chose proper shards ( it may be one or several )
-         - All stops coordinates and initially loaded to database from official xml and all requests for nearest stops goes to database 
-         - Timetables requests are cached by corresponding database shard and refreshed upon request ( 120 sec by default )
+	 - Split London's transport area to squares
+	 - For every square stops information stored in corresponding database shard
+	 - Depending from coordinates and distance we chose proper shards ( it may be one or several )
+	 - All stops coordinates and initially loaded to database from official xml and all requests for nearest stops goes to database 
+	 - Timetables requests are cached by corresponding database shard and refreshed upon request ( 120 sec by default )
 ----
 ### TODO
 - Improve concurrency and performance
