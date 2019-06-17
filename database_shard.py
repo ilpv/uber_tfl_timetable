@@ -10,6 +10,7 @@ from sqlalchemy.sql import visitors
 from sqlalchemy.sql import operators
 import math
 import datetime
+#import logging
 
 # Grid XxY chunks for database shards
 Xchunks = 3 
@@ -25,16 +26,16 @@ Xhigh = 51.7
 latMeters = 500. 
 lonMeters = 500.
 
+# Coordinates precision in meters
+latPrecisionMeters = 10
+lonPrecisionMeters = 10
+
 # Time to refresh database cache in sec
-diff_time_sec = 60
+diff_time_sec = 120
 
 # Radius of the Earth for 
 # lat,lon to meters conversion
 rEarth=6378137.
-
-Debug = False
-DataBaseSession = None
-dbase = declarative_base()
 
 #Sharding functions
 def getStep(cur,high,low,num):
@@ -59,13 +60,15 @@ def getShardIds(sq_xlow,sq_xhigh,sq_ylow,sq_yhigh):
     for x in range(int(stepxlow),int(stepxhigh)+1):
         for y in range(int(stepylow),int(stepyhigh)+1):
             ids.append(xy2id(x,y))
+    #logging.info(ids)
     return ids
 
-#ORM classes
+dbase = declarative_base()
+# ORM classes
 class Stops(dbase):
     __tablename__ = "Stops"
-    lat = Column("lat", Float)
-    lon = Column("lon", Float)
+    lat = Column("lat", Float, index=True)
+    lon = Column("lon", Float, index=True)
     stopName = Column("stopName", String(64))
     ref_time = Column("ref_time", DateTime, default = datetime.datetime.combine(datetime.date.min,datetime.time.min))
     stop_id = Column("stop_id",String(16),primary_key=True)
@@ -142,100 +145,148 @@ def query_chooser(query):
     ids = {}
     for column, operator, value in queryComparisons(query):
         if column.shares_lineage(Stops.__table__.c.lat):
-            if operator == operators.lt:
+            if operator == operators.le:
                 ids["LatHigh"]=value
-            elif operator == operators.gt:
+            elif operator == operators.ge:
                 ids["LatLow"]=value
         elif column.shares_lineage(Stops.__table__.c.lon):
-            if operator == operators.lt:
+            if operator == operators.le:
                 ids["LonHigh"]=value
-            elif operator == operators.gt:
+            elif operator == operators.ge:
                 ids["LonLow"]=value
     if len(ids) != 4:
         return range(Xchunks*Ychunks)
     else:
         return getShardIds(ids["LatLow"],ids["LatHigh"],ids["LonLow"],ids["LonHigh"])
 
-# Init sharding database 
-# with stops data parsed from xml
-def init():
+
+# Database initialization functions
+Debug = False
+def engine_init():
     db = {}
     for i in range(Xchunks*Ychunks):
         db[i] = create_engine(
                 "mysql+mysqldb://root:uber@/tfl%d?unix_socket=/cloudsql/tflapiusage-1557507922735:us-central1:tfl-sql"%(i),
                 echo=Debug)
-    # create tables
-    #for i in db:
-    #    dbase.metadata.drop_all(db[i])
-    #    dbase.metadata.create_all(db[i])
-    session = sessionmaker(class_=ShardedSession)
-    session.configure(shard_chooser=shard_chooser, id_chooser=id_chooser,
-                      query_chooser=query_chooser, shards=db)
-    DataBaseSession = session()
-    #stopsDict = getAllStops()
-    # Fill database shards with stops
-    #for s in stopsDict:
-    #    if "AtcoCode" in s and "Longitude" in s and "Latitude" in s and "CommonName" in s:
-    #        sp = Stops(s["AtcoCode"],s["CommonName"],s["Latitude"],s["Longitude"])
-    #        sp.timetables = []
-    #        DataBaseSession.add(sp)
-    #DataBaseSession.commit()
-    return DataBaseSession
+    return db
 
-def getOffsets(lat,lon):
-    latOff = (latMeters/rEarth)*180./math.pi
-    lonOff = (lonMeters/(rEarth*math.cos(math.pi*lat/180.)))*180./math.pi
+# Init session to sharding database
+def session_init(db):
+    session = sessionmaker(class_=ShardedSession)
+    session.configure(shard_chooser=shard_chooser, id_chooser=id_chooser, query_chooser=query_chooser, 
+                      shards=db, autoflush=True, autocommit=False )
+    return session
+
+dbNames = engine_init()
+Session = session_init(dbNames)
+
+# Init sharding database 
+# with stops data parsed from xml
+def init():
+    create()
+    sess = Session()
+    stopsDict = getAllStops()
+    # Fill database shards with stops
+    for s in stopsDict:
+        if "AtcoCode" in s and "Longitude" in s and "Latitude" in s and "CommonName" in s:
+            sp = Stops(s["AtcoCode"],s["CommonName"],s["Latitude"],s["Longitude"])
+            sp.timetables = []
+            sess.add(sp)
+    sess.commit()
+    sess.close()
+
+# Create all tables
+def create():
+    # create tables
+    for i in dbNames:
+        dbase.metadata.drop_all(dbNames[i])
+        dbase.metadata.create_all(dbNames[i])
+
+# Destroy all tables
+def destroy():
+    for i in dbNames:
+        dbase.metadata.drop_all(dbNames[i])
+
+# Convert lat,lon to meters
+def getOffsets(lat,lon,latm,lonm):
+    latOff = (latm/rEarth)*180./math.pi
+    lonOff = (lonm/(rEarth*math.cos(math.pi*lat/180.)))*180./math.pi
     return [latOff, lonOff] 
 
 # Find nearest stops in database 
-def getNearestStops(lat,lon,db):
-    offs = getOffsets(lat,lon)
-    stopData = db.query(Stops) \
-               .filter(Stops.lat > lat-offs[0]).filter(Stops.lat < lat+offs[0]) \
-               .filter(Stops.lon > lon-offs[1]).filter(Stops.lon < lon+offs[1])
+def getNearestStops(lat,lon):
     res = []
+    dbs = Session()
+    if lat > Xhigh or lat < Xlow or lon > Yhigh or lon < Ylow:
+        return res
+    offs = getOffsets(lat,lon,latMeters,lonMeters)
+    stopData = dbs.query(Stops) \
+               .filter(Stops.lat >= lat-offs[0]).filter(Stops.lat <= lat+offs[0]) \
+               .filter(Stops.lon >= lon-offs[1]).filter(Stops.lon <= lon+offs[1])
     for row in stopData:
-        res.append({"naptanId":row.stop_id,"lat":row.lat,"lon":row.lon,"commonName":row.stopName}) 
+        res.append({"naptanId":row.stop_id,"lat":row.lat,"lon":row.lon,"commonName":row.stopName})
+    dbs.close()
     return res
 
 # Obtain timetable by stop id 
 # from database or through TFL API
-def getTimeTable(naptanId,db):
-    stp = db.query(Stops).get(naptanId)
-    cur_time = datetime.datetime.now()
+def getTimeTable(lat,lon,sid):
     res = {}
-    if stp is None or stp.timetables is None:
-        res["Error"]="Something goes wrong with database."
-        return res
-    if cur_time - stp.ref_time > datetime.timedelta(seconds=diff_time_sec):
-        # Refresh database cache from tfl api
-        res = getStopPointArrivals(naptanId)
-        if res["Error"] == 0:
-            dt = res["Data"]
-            for tm in stp.timetables:
-                db.delete(tm)
-            for item in dt:
-                stp.timetables.append(Timetable(item["naptanId"],item["stationName"],item["modeName"], \
-                    item["lineName"],item["destinationName"],item["timeToStation"],item["expectedArrival"]))
-            stp.ref_time = cur_time
-            res["UpdateTime"] = cur_time
-            db.add(stp)
-            db.commit()
+    offs = getOffsets(lat,lon,latPrecisionMeters,lonPrecisionMeters)
+    dbs = Session()
+    try: 
+        stopData = dbs.query(Stops) \
+               .filter(Stops.lat >= lat-offs[0]).filter(Stops.lat <= lat+offs[0]) \
+               .filter(Stops.lon >= lon-offs[1]).filter(Stops.lon <= lon+offs[1])
+        stp = None
+        for s in stopData:
+            # Several stops with about the same coordinates 
+            # can be found in database. Select proper one with sid
+            if s.stop_id == sid:
+                stp = s
+                break
+        if stp is None or stp.timetables is None:
+            res["Error"]="Record not found in database."
+            dbs.close()
+            return res
+        naptanId = stp.stop_id
+        cur_time = datetime.datetime.now()
+        if cur_time - stp.ref_time > datetime.timedelta(seconds=diff_time_sec):
+            # Refresh database cache from tfl api
+            res = getStopPointArrivals(naptanId)
+            if res["Error"] == 0:
+                dt = res["Data"]
+                stp.timetables = []
+                for item in dt:
+                    tmt = Timetable(item["naptanId"],item["stationName"],item["modeName"], \
+                          item["lineName"],item["destinationName"],item["timeToStation"],item["expectedArrival"])
+                    stp.timetables.append(tmt)
+                    dbs.add(tmt)
+                stp.ref_time = cur_time
+                res["UpdateTime"] = cur_time
+                dbs.add(stp)
+                dbs.commit()
         else:
-            res["Error"]="Timetable outdated."
-    else:
-        # Collect data from database
-        dt = []
-        for tt in stp.timetables:
-            item = {}
-            item["naptanId"] = tt.stop_id
-            item["stationName"] = tt.stationName
-            item["modeName"] = tt.modeName
-            item["lineName"] = tt.lineName
-            item["destinationName"] = tt.destinationName
-            item["timeToStation"] = tt.timeToStation
-            item["expectedArrival"] = tt.expectedArrival
-            dt.append(item)
-        res["UpdateTime"] = stp.ref_time
-        res["Data"] = dt
+            # Collect data from database
+            dt = []
+            for tt in stp.timetables:
+                item = {}
+                item["naptanId"] = tt.stop_id
+                item["stationName"] = tt.stationName
+                item["modeName"] = tt.modeName
+                item["lineName"] = tt.lineName
+                item["destinationName"] = tt.destinationName
+                item["timeToStation"] = tt.timeToStation
+                item["expectedArrival"] = tt.expectedArrival
+                dt.append(item)
+            res["UpdateTime"] = stp.ref_time
+            res["Data"] = dt
+            res["Error"] = 0
+    except:
+        dbs.rollback()
+        # In case of transactions concurency
+        # return existing results  
+        #logging.info("Exception on Stop %s lat = %lf, lon = %lf search in database. Rollback."%(sid,lat,lon))
+    finally:
+        dbs.close()
     return res    

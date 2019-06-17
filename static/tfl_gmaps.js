@@ -119,11 +119,12 @@ function showStops(stopS)
 				infoWindow.setContent(marker.getTitle());
 				infoWindow.open(map, marker);
 				infoWindow.setPosition(marker.getPosition());
+			        pos = {lat: data[i].lat, lng: data[i].lon, id: data[i].naptanId};
 				//console.log(data[i].stopType);    
 				$.ajax(
 				{ 
 					type: "POST", url: "/timetable", contentType: "application/json",
-					data: JSON.stringify({stopid: data[i].naptanId}), dataType: "json",
+					data: JSON.stringify({location: pos}), dataType: "json",
 					success: function(msg) { console.log(msg); },
 					error: function(msg) { console.log(msg); }
 				}).done(showTimetable);

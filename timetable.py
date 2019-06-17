@@ -1,9 +1,10 @@
 from flask import Flask
 from flask import render_template, request, jsonify, send_from_directory
-from database_shard import init, getNearestStops, getTimeTable
+import database_shard
 import os
+
 app = Flask(__name__)
-db = init()
+database_shard.init()
 
 @app.route('/favicon.ico')
 def favicon():
@@ -20,7 +21,7 @@ def coordinates():
     jsn = request.get_json()
     lat = jsn["location"]["lat"]
     lon = jsn["location"]["lng"]
-    stops = getNearestStops(lat,lon,db)
+    stops = database_shard.getNearestStops(lat,lon)
     res = {}
     res["Error"] = 0
     res["stopPoints"] = stops 
@@ -30,6 +31,8 @@ def coordinates():
 #return timetable for stopid 
 def timetable():
     jsn = request.get_json()
-    naptanId = jsn["stopid"]
-    times = getTimeTable(naptanId,db)
+    lat = jsn["location"]["lat"]
+    lon = jsn["location"]["lng"]
+    stopid = jsn["location"]["id"]
+    times = database_shard.getTimeTable(lat,lon,stopid)
     return jsonify(times)
